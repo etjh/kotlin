@@ -158,6 +158,31 @@ abstract class AbstractReplTestRunner : TestCase() {
     }
 
     @Test
+    fun testScopes2() {
+        val lines = listOf(
+            """
+            fun foo(): Int {
+                var t = 2 * 2
+                class A(val value: Int = 5) {
+                    fun bar(): Int {
+                        class B(val value: Int = 4) {
+                            fun baz(): Int = value
+                        }
+                        var q = B().baz()
+                        var w = 1
+                        return q + w
+                    }
+                }
+
+                return A().bar() * 2
+            }
+            foo()
+            """
+        )
+        Assert.assertEquals(10, compileAndEval(lines))
+    }
+
+    @Test
     fun testEvaluateFunctionName() {
         val lines = listOf(
             "fun evaluateScript() = 5",

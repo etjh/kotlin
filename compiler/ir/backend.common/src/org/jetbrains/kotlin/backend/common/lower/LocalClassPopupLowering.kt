@@ -6,7 +6,6 @@
 package org.jetbrains.kotlin.backend.common.lower
 
 import org.jetbrains.kotlin.backend.common.*
-import org.jetbrains.kotlin.backend.common.ir.addChild
 import org.jetbrains.kotlin.backend.common.ir.setDeclarationsParent
 import org.jetbrains.kotlin.ir.IrElement
 import org.jetbrains.kotlin.ir.IrStatement
@@ -24,8 +23,12 @@ open class LocalClassPopupLowering(val context: BackendContext) : BodyLoweringPa
         runOnFilePostfix(irFile, withLocalDeclarations = true, allowDeclarationModification = true)
     }
 
+    private data class ExtractedLocalClass(
+        val local: IrClass, val newParent: IrDeclarationParent, val target: MutableList<in IrClass>, val insertBefore: IrDeclaration
+    )
+
     override fun lower(irBody: IrBody, container: IrDeclaration) {
-        val extractedLocalClasses = arrayListOf<Pair<IrClass, IrDeclarationParent>>()
+        val extractedLocalClasses = arrayListOf<ExtractedLocalClass>()
 
         irBody.transform(object : IrElementTransformerVoidWithContext() {
 
@@ -34,31 +37,41 @@ open class LocalClassPopupLowering(val context: BackendContext) : BodyLoweringPa
                     if (allScopes.size > 1) allScopes[allScopes.lastIndex - 1] else createScope(container as IrSymbolOwner)
                 if (!shouldPopUp(declaration, currentScope)) return declaration
 
-                val newContainer = run {
-                    var currentParent = declaration.parent
-                    while (currentParent is IrDeclaration && currentParent !is IrClass && currentParent !is IrScript) {
-                        currentParent = currentParent.parent
+                var insertBefore: IrDeclaration = declaration
+                var newContainer = declaration.parent
+                while (newContainer is IrDeclaration && newContainer !is IrClass && newContainer !is IrScript) {
+                    insertBefore = newContainer
+                    newContainer = newContainer.parent
+                }
+                when (newContainer) {
+                    is IrStatementContainer -> {
+                        extractedLocalClasses.add(
+                            ExtractedLocalClass(declaration, newContainer, newContainer.statements, insertBefore)
+                        )
                     }
-
-                    currentParent
+                    is IrDeclarationContainer -> {
+                        extractedLocalClasses.add(
+                            ExtractedLocalClass(declaration, newContainer, newContainer.declarations, insertBefore)
+                        )
+                    }
+                    else -> error("Inexpected container type $newContainer")
                 }
 
-                extractedLocalClasses.add(declaration to newContainer)
                 return IrCompositeImpl(declaration.startOffset, declaration.endOffset, context.irBuiltIns.unitType)
             }
         }, null)
 
-        for ((local, newContainer) in extractedLocalClasses) {
-            when (newContainer) {
-                is IrStatementContainer -> {
-                    newContainer.statements.add(local)
-                    local.setDeclarationsParent(newContainer)
-                }
-                is IrDeclarationContainer -> newContainer.addChild(local)
-                else -> error("Inexpected container type $newContainer")
+        // TODO: consider grouping by newContainer
+        for (extracted in extractedLocalClasses) {
+            val insertIndex = extracted.target.indexOf(extracted.insertBefore)
+            if (insertIndex >= 0) {
+                extracted.target.add(insertIndex, extracted.local)
+            } else {
+                extracted.target.add(extracted.local)
             }
+            extracted.local.setDeclarationsParent(extracted.newParent)
 
-            local.acceptVoid(object : IrElementVisitorVoid {
+            extracted.local.acceptVoid(object : IrElementVisitorVoid {
                 override fun visitElement(element: IrElement) {
                     element.acceptChildrenVoid(this)
                 }
