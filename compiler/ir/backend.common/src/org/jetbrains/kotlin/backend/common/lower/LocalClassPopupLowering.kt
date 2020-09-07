@@ -40,7 +40,7 @@ open class LocalClassPopupLowering(val context: BackendContext) : BodyLoweringPa
                         currentParent = currentParent.parent
                     }
 
-                    currentParent as IrDeclarationContainer // IrClass or IrScript or IrPackageFragment
+                    currentParent
                 }
 
                 extractedLocalClasses.add(declaration to newContainer)

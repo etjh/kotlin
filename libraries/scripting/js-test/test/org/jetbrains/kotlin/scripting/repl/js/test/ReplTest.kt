@@ -221,9 +221,11 @@ abstract class AbstractReplTestRunner : TestCase() {
                 if (compileResult !is ReplCompileResult.CompiledClasses) return compileResult.toString()
 
                 val evalResult = tester.evaluate(compileResult)
-                if (evalResult !is ReplEvalResult.ValueResult) return evalResult.toString()
-
-                result = evalResult.value
+                when (evalResult) {
+                    is ReplEvalResult.Error.Runtime -> return evalResult.cause.toString()
+                    !is ReplEvalResult.ValueResult -> return evalResult.toString()
+                    else -> result = evalResult.value
+                }
             }
         }
         return result

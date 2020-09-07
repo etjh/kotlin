@@ -12,7 +12,7 @@ import org.jetbrains.kotlin.ir.symbols.IrScriptSymbol
 //NOTE: declarations and statements stored separately
 abstract class IrScript :
     IrDeclarationBase(), IrSymbolDeclaration<IrScriptSymbol>, IrDeclarationWithName,
-    IrDeclarationParent, IrDeclarationContainer, IrStatementContainer {
+    IrDeclarationParent, IrStatementContainer {
 
     // NOTE: is the result of the FE conversion, because there script interpreted as a class and has receiver
     abstract var thisReceiver: IrValueParameter
